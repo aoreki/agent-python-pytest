@@ -7,6 +7,33 @@ from functools import wraps
 from six import PY2
 
 
+RESERVED_ATTRS = (
+    'args', 'asctime', 'created', 'exc_info', 'exc_text', 'filename',
+    'funcName', 'levelname', 'levelno', 'lineno', 'module',
+    'msecs', 'message', 'msg', 'name', 'pathname', 'process',
+    'processName', 'relativeCreated', 'stack_info', 'thread', 'threadName', 'attachment')
+
+
+def find_extra_fields(record, reserved):
+    """
+    Merges extra attributes from LogRecord object into target dictionary
+    :param record: logging.LogRecord
+    :param target: dict to update
+    :param reserved: dict or list with reserved keys to skip
+    """
+    target = None
+    for key, value in record.__dict__.items():
+        # this allows to have numeric keys
+        if (key not in reserved
+            and not (hasattr(key, "startswith")
+                     and key.startswith('_'))):
+            if target is None:
+                target = {key: value}
+            else:
+                target[key] = value
+    return target
+
+
 class RPLogger(logging.getLoggerClass()):
     """RPLogger class for logging tests."""
 
@@ -131,6 +158,10 @@ class RPLogHandler(logging.Handler):
 
         try:
             msg = self.format(record)
+            extra = find_extra_fields(record, RESERVED_ATTRS)
+            if extra:
+                extra_msg = "; ".join(["[{}]: {}".format(k, v) for k, v in extra.items()])
+                msg = "[msg]: {}; {}".format(msg, extra_msg)
         except (KeyboardInterrupt, SystemExit):
             raise
         except Exception:
